@@ -1,0 +1,51 @@
+{
+  "users": {
+    "admin": {
+      "password": "admin123",
+      "name": "管理员"
+    },
+    "hr": {
+      "password": "hr123",
+      "name": "人力资源"
+    },
+    "employee": {
+      "password": "employee123",
+      "name": "普通员工"
+    }
+  },
+  "roles": {
+    "admin": "管理员",
+    "hr": "人力资源",
+    "employee": "普通员工"
+  },
+  "permissions": {
+    "read_all": "查看所有文档",
+    "read_employee": "查看员工相关文档",
+    "read_hr": "查看人力资源相关文档",
+    "write_logs": "写入审计日志"
+  },
+  "role_permissions": {
+    "admin": [
+      "read_all",
+      "write_logs"
+    ],
+    "hr": [
+      "read_all",
+      "write_logs"
+    ],
+    "employee": [
+      "read_employee"
+    ]
+  },
+  "user_roles": {
+    "admin": [
+      "admin"
+    ],
+    "hr": [
+      "hr"
+    ],
+    "employee": [
+      "employee"
+    ]
+  }
+}

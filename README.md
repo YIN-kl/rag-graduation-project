@@ -1,95 +1,110 @@
-# langchain-fastapi-template
-This is a simple RAG API built with FastAPI and LangChain.
+# 基于RAG的企业内部制度问答系统
+这是一个使用FastAPI和LangChain构建的企业内部制度智能问答系统，支持基于文档的问答功能。
 
-## Run Locally
+## 项目特点
+- 使用FastAPI构建RESTful API
+- 基于LangChain实现RAG（检索增强生成）
+- 使用FAISS进行向量相似性搜索
+- 支持多种LLM模型（默认使用DeepSeek）
+- 支持企业内部制度文档的智能问答
 
-### 1. Set the API Key
-The easier way to do this is using the `.env`
-file.
-The `.env` file has a single environment variable to set,
-currently defined as `OPENAI_API_KEY=xxxx`. 
-Please change the `xxxx` value to your own OpenAI API key.
+## 本地运行
 
-Alternatively one can set the environment variable 
-`OPENAI_API_KEY`to their key. The former method is provided 
-for the sake of user-friendliness. In either case please do 
-not commit your API key to a git repo.
-### 2. Install the python requirements
+### 1. 配置API密钥
+最简单的方法是使用`.env`文件。在项目根目录创建`.env`文件，配置以下环境变量：
+
+```
+# DeepSeek API配置
+OPENAI_API_KEY=你的DeepSeek API密钥
+OPENAI_BASE_URL=https://api.deepseek.com/v1
+
+# 阿里云通义千问Embedding配置（可选）
+EMBEDDING_API_KEY=你的阿里云API密钥
+EMBEDDING_BASE_URL=https://ark.cn-beijing.aliyuncs.com/api/v3
+```
+
+### 2. 安装依赖
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Generate the Vector Store
-The vector database is already provided as part of this repo,
-but if the user prefers, it will be enough to run the command below to generate the vector
-database.
+### 3. 准备企业制度文档
+将企业制度文档放在`./documents`目录下，支持`.txt`格式的文档。目前系统已包含以下示例文档：
+- 员工手册.txt
+- 考勤制度.txt
+- 休假制度.txt
+- 报销流程.txt
+- 薪酬福利.txt
+
+### 4. 生成向量数据库
+运行以下命令生成向量数据库：
 ```bash
 python rag.py --repopulate
 ```
-The directories for the documents and where the vector database
-will be saved can be specified, but the API currently assumes
-they are in their default locations.
 
-### 4. Run and Query the API
-Run the API with 
+### 5. 启动API服务
 ```bash
-fastapi run main.py
+python main.py
 ```
 
-If we wanted to find out which countries the company can't sell to, we could 
-query the API this way:
+### 6. 测试API
+使用以下命令测试API：
 ```bash
-$ curl -X POST localhost:8000/question -H "Content-Type: application/json" -d '{"input": "Which countries are on our no sale list?", "detailed": false}'
-```
-This should give you something like the following output.
-```
-"Spain, Italy, Germany, and Sweden are on the no sale list."%       
-```
-Set the field `detailed` to `true` instead of `false` to get more 
-information like the document retrieved. Since we are only working with one
-document, this is probably not so important in our case.
+# PowerShell
+Invoke-WebRequest -Uri http://localhost:8000/question -Method POST -ContentType "application/json" -Body '{"input": "员工手册包含哪些内容？", "detailed": false}'
 
-This query along with two more can be found in the `sample.sh` 
-file. 
-Running this file should produce outputs like the following
-```
-$ bash sample.sh 
-"Sweden is not included in the list of countries where sales are not conducted due to ethical and environmental concerns. Some of the products do not meet Sweden's high environmental standards, and there are concerns raised about the ethical sourcing of materials used in the products. Until full compliance with Sweden's ethical and environmental standards can be ensured, sales will not be conducted in this market."
-"You should contact the Compliance Department for information about sales restrictions."
-"Spain, Italy, Germany, and Sweden are on the company's no sale list."%    
+# curl
+curl -X POST http://localhost:8000/question -H "Content-Type: application/json" -d '{"input": "员工手册包含哪些内容？", "detailed": false}'
 ```
 
-## Docker
-**Note: The OpenAI API key still needs to be set before using 
-Docker. The following section assumes it is set in the `.env` file.**
+## API接口
 
-### Build
-The provided dockerfile will create an image that will include
-vectors if generated, and generate them if not. Simply
-build the image with the following command.
+### 1. 问答接口
+- **URL**: `/question`
+- **方法**: POST
+- **请求体**:
+  ```json
+  {
+    "input": "你的问题",
+    "detailed": false
+  }
+  ```
+- **响应**:
+  - `detailed=false`: 只返回回答内容
+  - `detailed=true`: 返回完整的回答和检索到的文档
+
+### 2. 首页
+- **URL**: `/`
+- **方法**: GET
+- **响应**: 返回系统首页，包含API测试页面链接
+
+## Docker部署
+
+### 构建镜像
 ```bash
-docker build . -t rag 
-```
-If the OpenAI key is set in your environment and not in the `.env`
-file, build with the following command instead:
-```bash
-docker build --build-arg=OPENAI_API_KEY . -t rag
-```
-If it is neither in the environment variables or the `.env` file,
-an alternative is to simple provide it before running the build
-command, e.g.
-```bash
-OPENAI_API_KEY=xxxx docker build --build-arg=OPENAI_API_KEY . -t rag
+docker build . -t rag
 ```
 
-### Run
-Run the image once it's built with the following, please do not
-omit the port option as it is necessary to send requests to the
-container.
+### 运行容器
 ```bash
 docker run -p 8000:8000 rag
 ```
 
-After building and running, sending requests as shown above will return 
-the desired results.
+## 技术栈
+- **后端框架**: FastAPI
+- **RAG框架**: LangChain
+- **向量数据库**: FAISS
+- **LLM模型**: DeepSeek
+- **Embedding**: 支持多种Embedding模型
 
+## 注意事项
+- 确保API密钥有足够的余额
+- 文档内容应清晰、结构化，以获得更好的问答效果
+- 对于大型文档，建议适当分割以提高检索效率
+
+## 示例问题
+- 员工手册包含哪些内容？
+- 考勤制度有哪些规定？
+- 如何申请休假？
+- 报销流程是怎样的？
+- 公司的薪酬福利有哪些？

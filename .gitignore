@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+server.out.log
+server.err.log
+response*.json
+audit_logs.json
+.env
