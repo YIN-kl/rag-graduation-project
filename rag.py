@@ -1,6 +1,8 @@
 import argparse
 import os
 from os import listdir, path
+from pathlib import Path
+from typing import Any, Callable, Optional
 
 from dotenv import load_dotenv
 from langchain.chains import create_retrieval_chain
@@ -22,6 +24,16 @@ DOCUMENT_KEYWORDS = {
     "报销流程": ["报销", "费用", "流程", "审批"],
     "薪酬福利": ["薪酬", "工资", "福利", "奖金", "社保"],
 }
+VECTOR_INDEX_FILES = ("index.faiss", "index.pkl")
+SUPPORTED_DOCUMENT_SUFFIXES = {".txt", ".md"}
+
+
+class RAGServiceError(RuntimeError):
+    """对外暴露的 RAG 服务异常。"""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
 
 
 def _default_embedding_model(base_url: str) -> str:
@@ -29,6 +41,26 @@ def _default_embedding_model(base_url: str) -> str:
     if "dashscope.aliyuncs.com" in base_url:
         return "text-embedding-v4"
     return "text-embedding-v3"
+
+
+def _vector_index_exists(db_path: str = "vectors") -> bool:
+    base_path = Path(db_path)
+    return all((base_path / file_name).exists() for file_name in VECTOR_INDEX_FILES)
+
+
+def _classify_service_error(exc: Exception) -> RAGServiceError:
+    error_text = str(exc).lower()
+    if "embedding_api_key" in error_text or "embedding_base_url" in error_text:
+        return RAGServiceError("Embedding 配置缺失，请检查 .env 中的 EMBEDDING_* 配置。")
+    if "openai_api_key" in error_text:
+        return RAGServiceError("聊天模型配置缺失，请检查 .env 中的 OPENAI_API_KEY。")
+    if "connection error" in error_text or "connecterror" in error_text:
+        return RAGServiceError(
+            "外部模型服务当前连接失败，请检查网络、代理或 TLS 配置后重试。"
+        )
+    if "timed out" in error_text or "timeout" in error_text:
+        return RAGServiceError("外部模型服务请求超时，请稍后重试。")
+    return RAGServiceError(f"知识库服务暂时不可用：{exc}")
 
 
 def get_embeddings():
@@ -117,7 +149,15 @@ def load_api_key() -> None:
 def load_documents(folder: str = "./documents") -> list[Document]:
     """加载本地制度文档，并补充关键词和权限元数据。"""
     docs = []
-    for item in listdir(folder):
+    folder_path = Path(folder)
+    if not folder_path.exists():
+        raise RAGServiceError(f"文档目录不存在：{folder}")
+
+    for item in sorted(listdir(folder)):
+        full_path = Path(folder) / item
+        if not full_path.is_file() or full_path.suffix.lower() not in SUPPORTED_DOCUMENT_SUFFIXES:
+            continue
+
         loader = TextLoader(path.join(folder, item), encoding="utf-8")
         loaded_docs = loader.load()
 
@@ -141,6 +181,9 @@ def load_documents(folder: str = "./documents") -> list[Document]:
             doc.page_content = "关键词：" + ", ".join(keywords) + "\n\n" + doc.page_content
             docs.append(doc)
 
+    if not docs:
+        raise RAGServiceError("documents/ 目录下没有可用于构建知识库的文档。")
+
     return docs
 
 
@@ -153,24 +196,65 @@ def populate_vector_db(docs: list[Document], db_path: str = "vectors") -> Vector
     print(f"Split into {len(documents)} document chunks")
     print("Creating vector database...")
     vector = FAISS.from_documents(documents, embeddings)
+    Path(db_path).mkdir(parents=True, exist_ok=True)
     vector.save_local(db_path)
     print(f"Vector database saved to {db_path}")
     return vector
 
 
-def filter_documents_by_permission(docs: list[Document], username: str) -> list[Document]:
-    """按照用户权限过滤文档。"""
+def _permission_filter(username: str) -> Callable[[dict[str, Any]], bool]:
+    """为检索器构造元数据权限过滤器，避免重复重建用户专属向量库。"""
     from auth import rbac
 
-    filtered_docs = []
-    for doc in docs:
-        required_permission = doc.metadata.get("required_permission", "read_employee")
-        if rbac.has_permission(username, required_permission):
-            filtered_docs.append(doc)
-    return filtered_docs
+    def _matches(metadata: dict[str, Any]) -> bool:
+        required_permission = metadata.get("required_permission", "read_employee")
+        return rbac.has_permission(username, required_permission)
+
+    return _matches
 
 
-def load_vector_db(db_path: str = "vectors", username: str = None) -> VectorStore:
+def get_system_status(db_path: str = "vectors", document_folder: str = "./documents") -> dict[str, Any]:
+    """返回系统关键依赖的静态状态，供前端展示和健康检查。"""
+    load_dotenv(override=False)
+
+    document_files = []
+    documents_path = Path(document_folder)
+    if documents_path.exists():
+        document_files = [
+            file.name
+            for file in sorted(documents_path.iterdir())
+            if file.is_file() and file.suffix.lower() in SUPPORTED_DOCUMENT_SUFFIXES
+        ]
+
+    embedding_base_url = os.getenv("EMBEDDING_BASE_URL")
+    embedding_model = os.getenv("EMBEDDING_MODEL") or (
+        _default_embedding_model(embedding_base_url)
+        if embedding_base_url
+        else None
+    )
+
+    warnings = []
+    if not _vector_index_exists(db_path):
+        warnings.append("向量索引尚未就绪，首次问答可能会触发构建。")
+    if not os.getenv("OPENAI_API_KEY"):
+        warnings.append("OPENAI_API_KEY 未配置。")
+    if not os.getenv("EMBEDDING_API_KEY"):
+        warnings.append("EMBEDDING_API_KEY 未配置。")
+
+    return {
+        "status": "ok" if not warnings else "degraded",
+        "documents_count": len(document_files),
+        "document_files": document_files,
+        "vector_store_ready": _vector_index_exists(db_path),
+        "embedding_configured": bool(os.getenv("EMBEDDING_API_KEY") and embedding_base_url),
+        "chat_configured": bool(os.getenv("OPENAI_API_KEY")),
+        "embedding_base_url": embedding_base_url,
+        "embedding_model": embedding_model,
+        "warnings": warnings,
+    }
+
+
+def load_vector_db(db_path: str = "vectors") -> VectorStore:
     """加载已有向量库，如果失败则自动重建。"""
     embeddings = get_embeddings()
 
@@ -181,31 +265,22 @@ def load_vector_db(db_path: str = "vectors", username: str = None) -> VectorStor
             allow_dangerous_deserialization=True,
         )
         print("Vector database loaded successfully")
+        return db
     except Exception as exc:
         print(f"Error loading vector database: {exc}")
         print("Regenerating vector database...")
+
+    try:
         docs = load_documents()
-        db = populate_vector_db(docs, db_path)
+        return populate_vector_db(docs, db_path)
+    except Exception as rebuild_exc:
+        if _vector_index_exists(db_path):
+            raise _classify_service_error(rebuild_exc) from rebuild_exc
 
-    if username:
-        try:
-            docs = []
-            for doc_id in db.index_to_docstore_id.values():
-                try:
-                    doc = db.docstore.search(doc_id)
-                    if doc:
-                        docs.append(doc)
-                except Exception:
-                    pass
-
-            filtered_docs = filter_documents_by_permission(docs, username)
-            if filtered_docs:
-                db = FAISS.from_documents(filtered_docs, embeddings)
-                print(f"Vector database filtered for user: {username}")
-        except Exception as exc:
-            print(f"Error during permission filtering: {exc}")
-
-    return db
+        raise RAGServiceError(
+            "知识库索引不可用，且自动重建失败。请检查 Embedding 配置和网络后执行 "
+            "`python rag.py --repopulate`。"
+        ) from rebuild_exc
 
 
 def content_filter(response: str, username: str) -> str:
@@ -234,20 +309,39 @@ def content_filter(response: str, username: str) -> str:
     return response
 
 
-def get_retrieval_chain(username: str = None) -> Runnable:
+def _normalize_chain_inputs(payload: dict[str, Any]) -> dict[str, Any]:
+    """补齐问答链所需字段，兼容旧调用方式。"""
+    input_text = str(payload.get("input", "") or "").strip()
+    question = str(payload.get("question", "") or input_text).strip()
+    chat_history = str(payload.get("chat_history", "") or "").strip() or "无"
+    return {
+        "input": input_text,
+        "question": question,
+        "chat_history": chat_history,
+    }
+
+
+def get_retrieval_chain(username: Optional[str] = None) -> Runnable:
     """创建带权限过滤和内容审查的 RAG 检索链。"""
     load_api_key()
+    if not os.getenv("OPENAI_API_KEY"):
+        raise RAGServiceError("OPENAI_API_KEY 未配置，无法调用问答模型。")
+
     prompt = ChatPromptTemplate.from_template(
         """请严格根据下面提供的上下文回答问题。
 
 如果上下文中没有明确答案，请直接回答“根据当前知识库内容，无法确定该问题的答案”。
 不要编造内容，也不要补充上下文之外的信息。
 
+<对话历史>
+{chat_history}
+</对话历史>
+
 <上下文>
 {context}
 </上下文>
 
-问题：{input}
+当前问题：{question}
 
 回答："""
     )
@@ -259,18 +353,25 @@ def get_retrieval_chain(username: str = None) -> Runnable:
     )
     document_chain = create_stuff_documents_chain(llm, prompt)
 
-    vector = load_vector_db(username=username)
-    retriever = vector.as_retriever(search_kwargs={"k": 5})
+    vector = load_vector_db()
+    search_kwargs: dict[str, Any] = {"k": 5}
+    if username:
+        search_kwargs["filter"] = _permission_filter(username)
+    retriever = vector.as_retriever(search_kwargs=search_kwargs)
     retrieval_chain = create_retrieval_chain(retriever, document_chain)
 
     from langchain_core.runnables import RunnableLambda
 
     def filter_response(output):
-        if "answer" in output:
+        if "answer" in output and username:
             output["answer"] = content_filter(output["answer"], username)
         return output
 
-    return retrieval_chain | RunnableLambda(filter_response)
+    return (
+        RunnableLambda(_normalize_chain_inputs)
+        | retrieval_chain
+        | RunnableLambda(filter_response)
+    )
 
 
 if __name__ == "__main__":

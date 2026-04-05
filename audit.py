@@ -17,6 +17,10 @@ class AuditLogger:
             with open(self.log_file, "w", encoding="utf-8") as file:
                 json.dump([], file, ensure_ascii=False, indent=2)
 
+    def _load_logs(self) -> list:
+        with open(self.log_file, "r", encoding="utf-8") as file:
+            return json.load(file)
+
     def log_query(
         self,
         username: str,
@@ -37,8 +41,7 @@ class AuditLogger:
             "ip_address": ip_address,
         }
 
-        with open(self.log_file, "r", encoding="utf-8") as file:
-            logs = json.load(file)
+        logs = self._load_logs()
 
         logs.append(log_entry)
         if len(logs) > 1000:
@@ -47,27 +50,32 @@ class AuditLogger:
         with open(self.log_file, "w", encoding="utf-8") as file:
             json.dump(logs, file, ensure_ascii=False, indent=2)
 
-    def get_logs(self, limit: int = 100, username: Optional[str] = None) -> list:
+    def get_logs(
+        self,
+        limit: int = 100,
+        username: Optional[str] = None,
+        keyword: Optional[str] = None,
+        status_filter: Optional[str] = None,
+    ) -> list:
         """获取最近的日志记录。"""
-        with open(self.log_file, "r", encoding="utf-8") as file:
-            logs = json.load(file)
+        logs = self._load_logs()
 
         if username:
             logs = [log for log in logs if log.get("username") == username]
+        if keyword:
+            logs = [
+                log
+                for log in logs
+                if keyword in log.get("query", "") or keyword in log.get("response", "")
+            ]
+        if status_filter:
+            logs = [log for log in logs if log.get("status") == status_filter]
 
         return logs[-limit:]
 
     def search_logs(self, keyword: str, limit: int = 50) -> list:
         """按关键字搜索日志。"""
-        with open(self.log_file, "r", encoding="utf-8") as file:
-            logs = json.load(file)
-
-        results = []
-        for log in logs:
-            if keyword in log.get("query", "") or keyword in log.get("response", ""):
-                results.append(log)
-
-        return results[-limit:]
+        return self.get_logs(limit=limit, keyword=keyword)
 
     def clear_logs(self):
         """清空全部审计日志。"""
