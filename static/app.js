@@ -11,6 +11,8 @@
     const detailToggle = cloneById("detail-toggle");
     const refreshLogsButton = cloneById("refresh-logs-button");
     const refreshHealthButton = cloneById("refresh-health-button");
+    const refreshKnowledgeButton = cloneById("refresh-knowledge-button");
+    const rebuildKnowledgeButton = cloneById("rebuild-knowledge-button");
     const profileButton = document.getElementById("profile-button");
     const clearAnswerButton = document.getElementById("clear-answer-button");
     const clearSessionButton = document.getElementById("clear-session-button");
@@ -28,6 +30,7 @@
         profile: null,
         health: initialHealth,
         logs: [],
+        knowledgeBase: null,
         sessionId: "",
         conversationHistory: [],
         lastAnswer: null,
@@ -50,6 +53,12 @@
     const detailResultWrap = document.getElementById("detail-result-wrap");
     const detailResult = document.getElementById("detail-result");
     const sessionPill = document.getElementById("session-pill");
+    const knowledgeScope = document.getElementById("knowledge-scope");
+    const knowledgeList = document.getElementById("knowledge-list");
+    const knowledgeAccessPill = document.getElementById("knowledge-access-pill");
+    const knowledgeVectorPill = document.getElementById("knowledge-vector-pill");
+    const knowledgeTypeBadges = document.getElementById("knowledge-type-badges");
+    const knowledgeCategoryBadges = document.getElementById("knowledge-category-badges");
 
     function setBusy(button, busy, busyText, idleText) {
         button.disabled = busy;
@@ -92,6 +101,20 @@
             return `${ms.toFixed(0)} ms`;
         }
         return `${(ms / 1000).toFixed(2)} s`;
+    }
+
+    function formatBytes(value) {
+        const size = Number(value || 0);
+        if (!Number.isFinite(size) || size <= 0) {
+            return "0 B";
+        }
+        if (size < 1024) {
+            return `${size} B`;
+        }
+        if (size < 1024 * 1024) {
+            return `${(size / 1024).toFixed(1)} KB`;
+        }
+        return `${(size / (1024 * 1024)).toFixed(1)} MB`;
     }
 
     function shortText(value, limit = 96) {
@@ -170,15 +193,18 @@
             profilePanel.textContent = "尚未登录。";
             permissionBadges.innerHTML = "";
             logAccessPill.textContent = "日志权限未激活";
+            knowledgeAccessPill.textContent = "登录后读取知识库范围";
+            rebuildKnowledgeButton.disabled = true;
             return;
         }
 
-        const { username, roles, permissions, can_view_logs } = state.profile;
+        const { username, roles, permissions, can_view_logs, can_manage_knowledge_base } = state.profile;
         profilePanel.textContent = [
             `当前用户：${username}`,
             `角色：${roles.join("、") || "无"}`,
             `权限：${permissions.join("、") || "无"}`,
             `日志查看权限：${can_view_logs ? "已开启" : "未开启"}`,
+            `知识库管理权限：${can_manage_knowledge_base ? "已开启" : "未开启"}`,
         ].join("\n");
 
         permissionBadges.innerHTML = permissions.length
@@ -186,6 +212,72 @@
             : '<span class="mini-pill">暂无权限</span>';
 
         logAccessPill.textContent = can_view_logs ? "日志权限已激活" : "当前账号无日志权限";
+        knowledgeAccessPill.textContent = can_manage_knowledge_base
+            ? "可查看全部文档并重建索引"
+            : "仅展示当前账号可检索范围";
+        rebuildKnowledgeButton.disabled = !can_manage_knowledge_base;
+    }
+
+    function renderKnowledgeBadges(container, mapping, formatter) {
+        const entries = Object.entries(mapping || {});
+        container.innerHTML = entries.length
+            ? entries.map(([key, count]) => `<span class="mini-pill">${escapeHtml(formatter(key, count))}</span>`).join("")
+            : '<span class="mini-pill">暂无数据</span>';
+    }
+
+    function renderKnowledgeBase(data) {
+        state.knowledgeBase = data;
+        document.getElementById("knowledge-total").textContent = data?.total_documents ?? 0;
+        document.getElementById("knowledge-accessible").textContent = data?.accessible_documents ?? 0;
+        document.getElementById("knowledge-restricted").textContent = data?.restricted_documents ?? 0;
+
+        const allowedPermissions = Array.isArray(data?.allowed_permissions) && data.allowed_permissions.length
+            ? data.allowed_permissions.join("、")
+            : "无";
+        const scopeLines = [
+            `允许检索的权限范围：${allowedPermissions}`,
+            `当前可见文档：${data?.accessible_documents ?? 0} / ${data?.total_documents ?? 0}`,
+            `已隐藏的敏感文档：${data?.restricted_documents ?? 0}`,
+            `支持格式：${Array.isArray(data?.supported_types) ? data.supported_types.join(" / ") : "未知"}`,
+        ];
+        if (Array.isArray(data?.parse_warnings) && data.parse_warnings.length) {
+            scopeLines.push("");
+            scopeLines.push("解析提醒：");
+            scopeLines.push(...data.parse_warnings.map((item) => `- ${item}`));
+        }
+        knowledgeScope.textContent = scopeLines.join("\n");
+
+        knowledgeVectorPill.textContent = data?.vector_store_ready ? "索引已构建" : "索引未构建";
+        renderKnowledgeBadges(
+            knowledgeTypeBadges,
+            data?.documents_by_type,
+            (key, count) => `${key.toUpperCase()} ${count} 份`
+        );
+        renderKnowledgeBadges(
+            knowledgeCategoryBadges,
+            data?.documents_by_category,
+            (key, count) => `${key} ${count} 份`
+        );
+
+        const items = Array.isArray(data?.items) ? data.items : [];
+        knowledgeList.innerHTML = items.length
+            ? items.map((item) => `
+                <article class="knowledge-card">
+                    <div class="knowledge-top">
+                        <strong>${escapeHtml(item.filename || "未命名文档")}</strong>
+                        <span class="mini-pill">${escapeHtml((item.file_type || "unknown").toUpperCase())}</span>
+                        <span class="mini-pill ${item.accessible ? "status-success" : "status-locked"}">${item.accessible ? "当前账号可检索" : "当前账号不可检索"}</span>
+                    </div>
+                    <div class="knowledge-path">${escapeHtml(item.relative_path || "")}</div>
+                    <div class="knowledge-meta">
+                        <span>目录：${escapeHtml(item.category || "根目录")}</span>
+                        <span>权限：${escapeHtml(item.permission_label || item.required_permission || "未知")}</span>
+                        <span>大小：${escapeHtml(formatBytes(item.size_bytes))}</span>
+                        <span>更新：${escapeHtml(formatTimestamp(item.updated_at ? item.updated_at * 1000 : item.updated_at))}</span>
+                    </div>
+                </article>
+            `).join("")
+            : '<div class="empty-state">当前没有可展示的知识库文档。</div>';
     }
 
     function renderLogAccess() {
@@ -361,6 +453,60 @@
         }
     }
 
+    async function fetchKnowledgeBase() {
+        if (!state.token) {
+            knowledgeScope.textContent = "登录后显示当前账号的检索边界。";
+            knowledgeList.innerHTML = '<div class="empty-state">登录后显示知识库文档清单。</div>';
+            knowledgeTypeBadges.innerHTML = '<span class="mini-pill">等待登录</span>';
+            knowledgeCategoryBadges.innerHTML = '<span class="mini-pill">等待登录</span>';
+            knowledgeVectorPill.textContent = "索引状态读取中";
+            document.getElementById("knowledge-total").textContent = "0";
+            document.getElementById("knowledge-accessible").textContent = "0";
+            document.getElementById("knowledge-restricted").textContent = "0";
+            return;
+        }
+
+        setBusy(refreshKnowledgeButton, true, "刷新中...", "刷新知识库");
+        try {
+            renderKnowledgeBase(await apiGet("/knowledge-base"));
+        } catch (error) {
+            knowledgeScope.textContent = `知识库读取失败：${error.message}`;
+            knowledgeList.innerHTML = `<div class="empty-state">知识库读取失败：${escapeHtml(error.message)}</div>`;
+        } finally {
+            setBusy(refreshKnowledgeButton, false, "刷新中...", "刷新知识库");
+        }
+    }
+
+    async function rebuildKnowledgeBase() {
+        if (!state.token) {
+            knowledgeScope.textContent = "请先登录后再重建索引。";
+            return;
+        }
+
+        if (!(state.profile && state.profile.can_manage_knowledge_base)) {
+            knowledgeScope.textContent = "当前账号没有重建知识库索引的权限。";
+            return;
+        }
+
+        setBusy(rebuildKnowledgeButton, true, "重建中...", "重建索引");
+        try {
+            const response = await fetch("/knowledge-base/rebuild", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${state.token}` },
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.detail || "重建知识库失败");
+            }
+            renderKnowledgeBase(data);
+            renderHealth(await apiGet("/health"));
+        } catch (error) {
+            knowledgeScope.textContent = `重建索引失败：${error.message}`;
+        } finally {
+            setBusy(rebuildKnowledgeButton, false, "重建中...", "重建索引");
+        }
+    }
+
     async function fetchProfile() {
         if (!state.token) {
             profilePanel.textContent = "请先登录。";
@@ -371,6 +517,7 @@
             state.profile = await apiGet("/me");
             renderProfile();
             renderLogAccess();
+            await fetchKnowledgeBase();
         } catch (error) {
             profilePanel.textContent = `身份读取失败：${error.message}`;
         } finally {
@@ -436,8 +583,10 @@
             state.token = "";
             state.profile = null;
             state.logs = [];
+            state.knowledgeBase = null;
             renderProfile();
             renderLogs();
+            await fetchKnowledgeBase();
             resetConversationState("登录后就可以开始提问。");
             profilePanel.textContent = `登录失败：${error.message}`;
         } finally {
@@ -534,6 +683,8 @@
     });
     refreshLogsButton.addEventListener("click", fetchLogs);
     refreshHealthButton.addEventListener("click", fetchHealth);
+    refreshKnowledgeButton.addEventListener("click", fetchKnowledgeBase);
+    rebuildKnowledgeButton.addEventListener("click", rebuildKnowledgeBase);
     profileButton.addEventListener("click", fetchProfile);
     logLimit.addEventListener("change", fetchLogs);
     logStatus.addEventListener("change", fetchLogs);
@@ -558,5 +709,6 @@
     renderHealth(initialHealth);
     renderProfile();
     renderLogAccess();
+    fetchKnowledgeBase();
     setAnswerNotice("登录后就可以开始提问。");
 })();

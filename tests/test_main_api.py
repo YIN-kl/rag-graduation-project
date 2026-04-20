@@ -293,3 +293,70 @@ def test_health_returns_system_status(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == expected
+
+
+def test_knowledge_base_returns_filtered_snapshot(monkeypatch):
+    snapshot = {
+        "total_documents": 8,
+        "accessible_documents": 6,
+        "restricted_documents": 2,
+        "supported_types": ["docx", "md", "pdf", "txt"],
+        "documents_by_type": {"md": 2, "pdf": 1, "txt": 5},
+        "documents_by_permission": {"read_all": 2, "read_employee": 6},
+        "documents_by_category": {"人力资源": 2, "根目录": 3},
+        "allowed_permissions": ["read_employee"],
+        "vector_store_ready": True,
+        "items": [
+            {
+                "filename": "招聘流程.md",
+                "relative_path": "人力资源/招聘流程.md",
+                "category": "人力资源",
+                "document_type": "招聘流程",
+                "file_type": "md",
+                "required_permission": "read_all",
+                "permission_label": "管理层/HR敏感制度",
+                "accessible": False,
+                "size_bytes": 1024,
+                "updated_at": 1713500000.0,
+            }
+        ],
+    }
+    monkeypatch.setattr(main, "get_knowledge_base_snapshot", lambda username=None: snapshot)
+
+    response = client.get("/knowledge-base", headers=auth_headers("employee"))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_documents"] == 8
+    assert body["restricted_documents"] == 2
+    assert body["can_rebuild"] is False
+    assert body["items"][0]["filename"] == "招聘流程.md"
+
+
+def test_knowledge_base_rebuild_requires_read_all_permission():
+    response = client.post("/knowledge-base/rebuild", headers=auth_headers("employee"))
+
+    assert response.status_code == 403
+
+
+def test_knowledge_base_rebuild_returns_snapshot_for_admin(monkeypatch):
+    rebuilt = {
+        "total_documents": 9,
+        "accessible_documents": 9,
+        "restricted_documents": 0,
+        "supported_types": ["docx", "md", "pdf", "txt"],
+        "documents_by_type": {"md": 3, "pdf": 1, "txt": 5},
+        "documents_by_permission": {"read_employee": 9},
+        "documents_by_category": {"根目录": 5, "财务制度": 2},
+        "allowed_permissions": ["read_all", "read_employee"],
+        "vector_store_ready": True,
+        "items": [],
+    }
+    monkeypatch.setattr(main, "rebuild_vector_store", lambda: rebuilt)
+
+    response = client.post("/knowledge-base/rebuild", headers=auth_headers("admin"))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["can_rebuild"] is True
+    assert body["total_documents"] == 9

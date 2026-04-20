@@ -1,88 +1,78 @@
 # 基于 RAG 的企业内部制度问答系统
 
-这是一个基于 FastAPI、LangChain 和 FAISS 构建的企业内部知识问答系统。项目以企业制度文档为知识库，通过 RAG 检索增强生成能力，为用户提供带权限控制的智能问答服务。
+这是一个基于 FastAPI、LangChain 和 FAISS 构建的企业内部制度问答系统。项目围绕毕业设计场景实现了知识库问答、RBAC 权限控制、知识库管理、审计日志和前端展示页面，适合用于课程演示、中期检查和毕业答辩。
 
-系统当前集成了：
-- DeepSeek 聊天模型，用于生成最终回答
-- 阿里云 DashScope Embedding，用于向量化检索
-- FAISS 向量数据库，用于本地相似度搜索
-- 基于角色的权限控制，用于限制敏感制度内容访问
-- 审计日志，用于记录查询行为和接口执行结果
+## 项目亮点
 
-## 项目功能
-
-- 支持本地制度文档导入与分块
-- 支持基于向量检索的 RAG 问答
-- 支持用户登录与 Token 鉴权
-- 支持基于角色的访问控制
-- 支持问答审计日志记录
-- 支持通过 FastAPI 自动生成接口文档
+- 支持基于企业制度知识库的 RAG 问答
+- 支持 `txt`、`md`、`pdf`、`docx` 文档类型
+- 支持递归读取 `documents/` 下的子文件夹
+- 支持基于用户身份和权限的检索范围限制
+- 支持知识库管理页面、文档清单展示和索引重建
+- 支持问答审计日志查看与可视化
+- 支持会话上下文保留与来源引用展示
 
 ## 技术栈
 
 - 后端框架：FastAPI
-- LLM：DeepSeek
-- Embedding：阿里云 DashScope OpenAI 兼容接口
+- 问答模型：DeepSeek Chat（OpenAI Compatible API）
+- 向量模型：DashScope Embedding
 - 检索框架：LangChain
 - 向量数据库：FAISS
-- 鉴权：JWT
-- 配置管理：python-dotenv
+- 权限认证：JWT + RBAC
+- 前端：Jinja2 模板 + 原生 JavaScript
 
-## 项目结构
+## 当前目录结构
 
 ```text
 rag-graduation-project/
-├── documents/               # 企业制度文档
-├── vectors/                 # FAISS 向量库
-├── main.py                  # FastAPI 应用入口
-├── rag.py                   # RAG 检索与向量库逻辑
-├── auth.py                  # 角色权限控制
-├── audit.py                 # 审计日志
-├── auth_data.json           # 默认用户与角色数据
-├── test_api.py              # LLM 连接测试脚本
-├── requirements.txt         # 依赖列表
-├── .env.example             # 环境变量示例
-└── README.md
+├─ documents/                    # 知识库文档目录
+│  ├─ 行政管理制度/
+│  ├─ 财务管理制度/
+│  ├─ 人力资源制度/
+│  └─ 知识库说明/
+├─ static/                       # 前端静态资源
+├─ templates/                    # 前端模板
+├─ tests/                        # 自动化测试
+├─ vectors/                      # FAISS 向量索引
+├─ main.py                       # FastAPI 应用入口
+├─ rag.py                        # 文档加载、索引构建、检索链路
+├─ auth.py                       # RBAC 权限控制
+├─ audit.py                      # 审计日志逻辑
+├─ requirements.txt              # 依赖列表
+├─ .env.example                  # 环境变量示例
+└─ README.md
 ```
 
 ## 默认账号
 
-项目内置了 3 个演示账号：
+系统内置了 3 个演示账号：
 
-| 用户名 | 密码 | 角色 |
-| --- | --- | --- |
-| `admin` | `admin123` | 管理员 |
-| `hr` | `hr123` | 人力资源 |
-| `employee` | `employee123` | 普通员工 |
-
-不同角色可查看的内容不同：
-- `admin`：可访问全部文档，可查看日志
-- `hr`：可访问全部文档，可查看日志
-- `employee`：仅可访问普通员工权限范围内的内容
+| 用户名 | 密码 | 角色 | 说明 |
+| --- | --- | --- | --- |
+| `admin` | `admin123` | 管理员 | 可查看全部文档，可查看日志，可重建知识库 |
+| `hr` | `hr123` | 人力资源 | 可查看全部文档，可查看日志，可重建知识库 |
+| `employee` | `employee123` | 普通员工 | 仅可检索普通制度文档 |
 
 ## 环境要求
 
 - Python 3.9 及以上
-- Windows、macOS 或 Linux
-- 可正常访问 DeepSeek 和阿里云 DashScope 接口
+- Windows / macOS / Linux
+- 可访问 DeepSeek 和 DashScope 接口
 
 ## 安装依赖
 
 在项目根目录执行：
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-可选测试：
+如果只想补装文档解析依赖，也可以执行：
 
 ```bash
-python test_api.py
+python -m pip install pypdf docx2txt
 ```
-
-这个脚本会分别测试：
-- DeepSeek 聊天模型是否连通
-- 阿里云 Embedding 是否连通
 
 ## 环境变量配置
 
@@ -92,7 +82,7 @@ python test_api.py
 cp .env.example .env
 ```
 
-Windows PowerShell 可手动新建 `.env` 文件，内容参考如下：
+Windows PowerShell 下也可以手动创建 `.env` 文件，示例内容如下：
 
 ```env
 OPENAI_API_KEY=your_deepseek_api_key
@@ -103,50 +93,37 @@ EMBEDDING_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 EMBEDDING_MODEL=text-embedding-v4
 ```
 
-### 配置说明
+## 知识库文档说明
 
-- `OPENAI_API_KEY`
-  DeepSeek 的 API Key
-- `OPENAI_BASE_URL`
-  DeepSeek OpenAI 兼容接口地址，默认使用 `https://api.deepseek.com/v1`
-- `EMBEDDING_API_KEY`
-  阿里云 DashScope 的 API Key
-- `EMBEDDING_BASE_URL`
-  阿里云 Embedding 接口地址
-- `EMBEDDING_MODEL`
-  Embedding 模型名称，当前推荐 `text-embedding-v4`
+系统当前支持以下文档格式：
 
-### 阿里云 Embedding 注意事项
+- `txt`
+- `md`
+- `pdf`
+- `docx`
 
-- 不需要单独申请“Embedding 专用 API Key”，阿里云 Model Studio 的 API Key 可以直接用于 Embedding
-- 中国区通常使用：
-  `https://dashscope.aliyuncs.com/compatible-mode/v1`
-- 国际站通常使用：
-  `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
-- `API Key`、`地区`、`Base URL`、`模型名` 必须匹配
+知识库文档统一放在 `documents/` 目录下，支持使用子文件夹按业务主题组织，例如：
 
-## 准备知识库文档
+- `行政管理制度`
+- `财务管理制度`
+- `人力资源制度`
+- `知识库说明`
 
-把企业制度文档放到 `documents/` 目录下，推荐使用 UTF-8 编码的 `.txt` 文件。
+### 关于 PDF 和 DOCX
 
-当前项目内已包含示例文档：
-- `员工手册.txt`
-- `考勤制度.txt`
-- `休假制度.txt`
-- `报销流程.txt`
-- `薪酬福利.txt`
+- 如果环境已安装 `pypdf`，系统可以读取 PDF 文档
+- 如果环境已安装 `docx2txt`，系统可以读取 DOCX 文档
+- 对于提取质量较差的 PDF，项目支持使用同目录的“文本版”文档辅助建立索引
 
-## 构建向量库
+## 构建或重建向量库
 
-首次运行前，建议先生成向量库：
+新增、删除或修改知识库文档后，建议重建向量索引：
 
 ```bash
 python rag.py --repopulate
 ```
 
-说明：
-- `--repopulate` 会强制重建 `vectors/` 下的索引
-- 当你修改了文档内容或更换了 Embedding 模型后，也建议重新生成向量库
+这一步很重要。只有重建索引后，新文档才能真正参与问答检索。
 
 ## 启动项目
 
@@ -154,20 +131,17 @@ python rag.py --repopulate
 python main.py
 ```
 
-启动后默认访问地址：
+启动后可访问：
 
-- 首页演示页：[http://127.0.0.1:8000](http://127.0.0.1:8000)
-  可直接在页面中登录、提问、查看系统状态和日志可视化仪表盘，适合演示和答辩使用
+- 首页演示页面：[http://127.0.0.1:8000](http://127.0.0.1:8000)
 - Swagger 文档：[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - 健康检查：[http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
-  用于查看当前文档数量、向量索引是否就绪以及大模型配置状态
 
-## 接口说明
+## 主要接口
 
-### 1. 登录接口
+### `POST /login`
 
-- 路径：`POST /login`
-- 作用：获取访问令牌
+用户登录并获取 Bearer Token。
 
 请求示例：
 
@@ -178,200 +152,108 @@ python main.py
 }
 ```
 
-响应示例：
+### `GET /me`
+
+返回当前登录用户的角色、权限和功能访问能力。
+
+### `POST /question`
+
+基于知识库进行问答。
+
+请求示例：
 
 ```json
 {
-  "access_token": "your_token",
-  "token_type": "bearer"
+  "input": "公司的考勤制度是怎样的？",
+  "detailed": false,
+  "return_rich_response": true
 }
 ```
 
-### 2. 问答接口
+### `GET /knowledge-base`
 
-- 路径：`POST /question`
-- 作用：基于知识库进行问答
-- 鉴权：需要在请求头中携带 `Bearer Token`
+返回知识库管理视图，包括：
 
-请求体：
+- 文档总数
+- 可访问文档数
+- 受限文档数
+- 文档类型分布
+- 目录分布
+- 文档清单
 
-```json
-{
-  "input": "公司的考勤制度是什么？",
-  "detailed": false
-}
-```
+### `POST /knowledge-base/rebuild`
 
-说明：
-- `input`：用户问题
-- `detailed=false`：仅返回最终回答
-- `detailed=true`：返回完整链路结果
+重建知识库索引。仅管理员和 HR 可使用。
 
-### 3. 审计日志接口
+### `GET /logs`
 
-- 路径：`GET /logs`
-- 作用：查看审计日志
-- 鉴权：需要登录
-- 权限：仅 `admin` 和 `hr` 可访问
-- 支持筛选参数：
-  - `limit`
-  - `username`
-  - `keyword`
-  - `status_filter`
+查看审计日志。仅管理员和 HR 可访问。
 
-### 4. 当前用户信息接口
+### `GET /health`
 
-- 路径：`GET /me`
-- 作用：返回当前登录用户的用户名、角色、权限以及是否可查看日志
+查看系统健康状态、索引状态与配置状态。
 
-### 5. 系统健康检查接口
+## 测试
 
-- 路径：`GET /health`
-- 作用：查看系统当前静态状态
-- 说明：
-  - 返回文档数量
-  - 返回向量索引是否已构建
-  - 返回聊天模型和 Embedding 配置是否齐全
-  - 若存在风险项，会在 `warnings` 字段中提示
-
-## 调用示例
-
-### PowerShell
-
-先登录：
-
-```powershell
-$loginBody = @{
-  username = "admin"
-  password = "admin123"
-} | ConvertTo-Json
-
-$token = (Invoke-RestMethod `
-  -Method Post `
-  -Uri http://127.0.0.1:8000/login `
-  -ContentType "application/json" `
-  -Body $loginBody).access_token
-```
-
-再提问：
-
-```powershell
-$headers = @{
-  Authorization = "Bearer $token"
-}
-
-$body = @{
-  input = "公司的考勤制度是什么？"
-  detailed = $false
-} | ConvertTo-Json
-
-Invoke-RestMethod `
-  -Method Post `
-  -Uri http://127.0.0.1:8000/question `
-  -Headers $headers `
-  -ContentType "application/json" `
-  -Body $body
-```
-
-### curl
+运行测试：
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/login" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\":\"admin\",\"password\":\"admin123\"}"
+python -m pytest tests/test_main_api.py tests/test_rag_documents.py
 ```
 
-拿到 token 后：
+## 演示建议
 
-```bash
-curl -X POST "http://127.0.0.1:8000/question" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your_token" \
-  -d "{\"input\":\"公司的考勤制度是什么？\",\"detailed\":false}"
-```
+答辩时建议按以下流程演示：
 
-## 审计日志
-
-系统会将问答请求记录到本地日志文件中：
-
-- 文件：`audit_logs.json`
-
-日志字段包括：
-- 请求时间
-- 用户名
-- 问题内容
-- 响应内容
-- 执行状态
-- 执行耗时
-- IP 地址
+1. 打开首页，展示系统状态和知识库管理面板
+2. 使用 `employee` 登录，演示普通权限下的检索范围
+3. 使用 `admin` 或 `hr` 登录，演示更高权限下可访问的知识库内容
+4. 提问制度相关问题，展示来源引用和会话历史
+5. 打开日志可视化面板，展示审计记录
 
 ## 常见问题
 
-### 1. 阿里云提示 API Key 错误
+### 1. 新增文档后系统答不出来
 
-请重点检查：
-- 是否使用了正确地区的 `EMBEDDING_BASE_URL`
-- 是否使用了正确的模型名，如 `text-embedding-v4`
-- 是否重启了服务，让新的 `.env` 生效
-- 是否把中国区 Key 配到了国际站地址，或反过来
-
-### 2. 连接阿里云时报 `Connection error`
-
-这通常不是 Key 错误，而是网络问题。常见原因包括：
-- 当前网络无法访问阿里云接口
-- 代理配置异常
-- TLS / SSL 握手失败
-- 公司网络策略限制了外部请求
-
-### 3. 向量库加载失败
-
-如果 `vectors/` 中的索引和当前 Embedding 配置不一致，建议执行：
+通常是因为没有重建向量库。请执行：
 
 ```bash
 python rag.py --repopulate
 ```
 
-### 4. 中文显示乱码
+### 2. PDF 在知识库里能看到，但问答命中不到
+
+常见原因：
+
+- 没有安装 `pypdf`
+- 索引没有重建
+- PDF 文本提取质量差
+
+建议：
+
+- 安装依赖
+- 重建索引
+- 为重要 PDF 准备同目录的文本整理版
+
+### 3. 问答时报连接错误
+
+如果报 `Connection error`、`APIConnectionError` 等错误，通常是：
+
+- DeepSeek 接口不可用
+- DashScope Embedding 接口不可用
+- 网络代理或 TLS 配置异常
+
+### 4. 中文出现乱码
 
 请确认：
-- 文档文件使用 UTF-8 编码
-- 终端或编辑器使用 UTF-8 编码打开
 
-## Docker 运行
-
-构建镜像：
-
-```bash
-docker build -t rag-app .
-```
-
-启动容器：
-
-```bash
-docker run -p 8000:8000 --env-file .env rag-app
-```
-
-说明：
-- 镜像不会内置真实 `.env`
-- 请在运行容器时通过 `--env-file .env` 传入配置
-- 如果你修改了文档或 Embedding 模型，建议先在宿主机重新生成 `vectors/` 后再构建镜像
-
-## 辅助脚本
-
-- `python test_api.py`
-  用于快速测试 DeepSeek 和阿里云 Embedding 接口是否可用
-- `sample.sh`
-  用于演示登录后调用 `/question` 接口的完整流程
+- 文档使用 UTF-8 编码
+- 终端和编辑器使用 UTF-8 打开
 
 ## 后续可扩展方向
 
-- 支持 PDF、Word 等更多文档格式
-- 支持更细粒度的权限控制
-- 支持管理后台
-- 支持前端问答页面
-- 支持多知识库切换
-- 支持日志筛选与导出
-
-## 许可证
-
-本项目当前未单独声明开源许可证，如需公开分发，建议补充 LICENSE 文件。
+- 增加知识库上传、删除和编辑能力
+- 增加更细粒度的权限控制
+- 增加更多企业制度文档样例
+- 增加更完整的后台管理能力
+- 增加更丰富的答辩展示图表

@@ -14,7 +14,13 @@ from pydantic import BaseModel, Field
 
 from audit import audit_logger
 from auth import rbac
-from rag import RAGServiceError, get_retrieval_chain, get_system_status
+from rag import (
+    RAGServiceError,
+    get_knowledge_base_snapshot,
+    get_retrieval_chain,
+    get_system_status,
+    rebuild_vector_store,
+)
 
 # 解决部分 Windows 环境中 OpenMP 重复加载导致的报错
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -74,6 +80,7 @@ class UserProfile(BaseModel):
     roles: list[str]
     permissions: list[str]
     can_view_logs: bool
+    can_manage_knowledge_base: bool
 
 
 class ConversationTurn(BaseModel):
@@ -86,6 +93,34 @@ class SourceItem(BaseModel):
     filename: str
     document_type: str
     snippet: str
+
+
+class KnowledgeBaseItem(BaseModel):
+    filename: str
+    relative_path: str
+    category: str
+    document_type: str
+    file_type: str
+    required_permission: str
+    permission_label: str
+    accessible: bool
+    size_bytes: int
+    updated_at: float
+
+
+class KnowledgeBaseResponse(BaseModel):
+    total_documents: int
+    accessible_documents: int
+    restricted_documents: int
+    supported_types: list[str]
+    documents_by_type: dict[str, int]
+    documents_by_permission: dict[str, int]
+    documents_by_category: dict[str, int]
+    allowed_permissions: list[str]
+    vector_store_ready: bool
+    can_rebuild: bool
+    parse_warnings: list[str] = Field(default_factory=list)
+    items: list[KnowledgeBaseItem] = Field(default_factory=list)
 
 
 class ConversationHistoryResponse(BaseModel):
@@ -173,6 +208,7 @@ def _build_user_profile(username: str) -> UserProfile:
         roles=roles,
         permissions=permissions,
         can_view_logs="write_logs" in permissions,
+        can_manage_knowledge_base="read_all" in permissions,
     )
 
 
@@ -490,6 +526,30 @@ def answer_question(
 def health():
     """返回知识库和配置的基础健康状态。"""
     return get_system_status()
+
+
+@app.get("/knowledge-base", response_model=KnowledgeBaseResponse, summary="知识库管理视图")
+def get_knowledge_base(
+    current_user: TokenData = Depends(get_current_user),
+):
+    snapshot = get_knowledge_base_snapshot(username=current_user.username)
+    snapshot["can_rebuild"] = rbac.has_permission(current_user.username, "read_all")
+    return snapshot
+
+
+@app.post("/knowledge-base/rebuild", response_model=KnowledgeBaseResponse, summary="重建知识库索引")
+def rebuild_knowledge_base(
+    current_user: TokenData = Depends(get_current_user),
+):
+    if not rbac.has_permission(current_user.username, "read_all"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to rebuild the knowledge base",
+        )
+
+    snapshot = rebuild_vector_store()
+    snapshot["can_rebuild"] = True
+    return snapshot
 
 
 @app.get("/logs", summary="获取审计日志")
