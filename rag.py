@@ -521,10 +521,20 @@ def load_vector_db(db_path: str = "vectors") -> VectorStore:
         ) from rebuild_exc
 
 
-def content_filter(response: str, username: str) -> str:
+def content_filter(response: str, username: str, question: str = "") -> str:
     """对生成结果做敏感信息过滤。"""
     from auth import rbac
 
+    # 只有当用户没有 read_employee 权限时才拒绝访问
+    if not rbac.has_permission(username, "read_employee"):
+        return "根据您的权限，无法查看此信息。"
+    
+    # 如果用户有 read_all 权限，允许查看所有内容
+    if rbac.has_permission(username, "read_all"):
+        return response
+    
+    # 对于只有 read_employee 权限的用户，检查问题是否涉及敏感内容
+    # 如果问题涉及敏感话题，直接拒绝回答
     sensitive_keywords = [
         "薪酬",
         "工资",
@@ -532,18 +542,23 @@ def content_filter(response: str, username: str) -> str:
         "福利",
         "绩效",
         "考核",
+        "年薪",
+        "月薪",
+        "薪资",
+        "社保",
+        "公积金",
         "个人信息",
         "隐私",
         "保密",
         "机密",
         "内部资料",
     ]
-
-    if not rbac.has_permission(username, "read_all"):
-        for keyword in sensitive_keywords:
-            if keyword in response:
-                return "根据您的权限，无法查看此信息。"
-
+    
+    # 检查用户的问题是否涉及敏感内容
+    for keyword in sensitive_keywords:
+        if keyword in question:
+            return "根据您的权限，无法查看此信息。"
+    
     return response
 
 
@@ -638,7 +653,8 @@ def get_retrieval_chain(username: Optional[str] = None) -> Runnable:
     
     def filter_response(output):
         if "answer" in output and username:
-            output["answer"] = content_filter(output["answer"], username)
+            question = output.get("question", "")
+            output["answer"] = content_filter(output["answer"], username, question)
         return output
 
     return (
