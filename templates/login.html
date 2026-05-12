@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>系统登录 - 企业制度智能问答系统</title>
+    <style>
+        :root {
+            --bg: #edf4ff;
+            --panel: rgba(255, 255, 255, 0.94);
+            --border: rgba(27, 84, 163, 0.16);
+            --text: #0f2b4d;
+            --muted: #5e7fa6;
+            --primary: #1f6fd8;
+            --primary-deep: #104fbd;
+            --danger: #c0392b;
+            --success: #127e5f;
+            --shadow: 0 16px 36px rgba(17, 76, 153, 0.14);
+            --display-font: "Source Han Serif SC", "Noto Serif SC", "STZhongsong", serif;
+            --body-font: "Source Han Sans SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: var(--body-font);
+            color: var(--text);
+            background:
+                radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.88), transparent 32%),
+                radial-gradient(circle at 90% 20%, rgba(31, 111, 216, 0.14), transparent 35%),
+                linear-gradient(145deg, #f5f9ff 0%, #e7f1ff 54%, #daeaff 100%);
+            display: grid;
+            place-items: center;
+            padding: 16px;
+        }
+
+        .shell {
+            width: min(980px, 100%);
+            display: grid;
+            gap: 14px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+            padding: 18px;
+        }
+
+        .title {
+            display: grid;
+            gap: 8px;
+        }
+
+        h1, h2 {
+            margin: 0;
+            font-family: var(--display-font);
+        }
+        h1 { font-size: clamp(28px, 4.2vw, 42px); }
+        h2 { font-size: 20px; }
+
+        .muted {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.65;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .card {
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: #fff;
+            padding: 14px;
+            display: grid;
+            gap: 10px;
+        }
+
+        label {
+            display: grid;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            border: 1px solid rgba(23, 93, 181, 0.2);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font: inherit;
+            color: var(--text);
+            background: linear-gradient(180deg, #fff, #f2f8ff);
+            outline: none;
+        }
+        input:focus {
+            border-color: rgba(31, 111, 216, .58);
+            box-shadow: 0 0 0 4px rgba(31, 111, 216, .12);
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 10px 16px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        button:disabled { opacity: .6; cursor: wait; }
+
+        .primary-button {
+            color: #fff;
+            background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+        }
+        .neutral-button {
+            color: var(--text);
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(238, 247, 255, 0.88));
+            border: 1px solid rgba(31, 111, 216, .15);
+        }
+
+        .panel {
+            border: 1px dashed rgba(31, 111, 216, .25);
+            border-radius: 12px;
+            background: rgba(237, 246, 255, .72);
+            padding: 10px;
+            line-height: 1.6;
+            font-size: 13px;
+            color: var(--muted);
+            white-space: pre-wrap;
+        }
+
+        .error { color: var(--danger); }
+        .success { color: var(--success); }
+
+        .links {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .links a {
+            color: var(--primary-deep);
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        @media (max-width: 860px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <main class="shell">
+        <section class="title">
+            <h1>企业制度智能问答系统</h1>
+            <p class="muted">请先登录或注册。登录成功后将自动跳转到系统主界面 <code>/app</code>。</p>
+            <p class="muted">默认管理员账号：<code>admin / admin123</code></p>
+            <div class="links">
+                <a href="/docs" target="_blank" rel="noreferrer">Swagger 文档</a>
+                <a href="/health" target="_blank" rel="noreferrer">健康检查</a>
+            </div>
+        </section>
+
+        <section class="grid">
+            <section class="card">
+                <h2>登录系统</h2>
+                <form id="login-form">
+                    <label>用户名
+                        <input id="auth-username" autocomplete="username" value="admin" />
+                    </label>
+                    <label>密码
+                        <input id="auth-password" type="password" autocomplete="current-password" value="admin123" />
+                    </label>
+                    <div class="row">
+                        <button id="login-button" class="primary-button" type="submit">登录并进入系统</button>
+                        <button id="reset-login-button" class="neutral-button" type="button">清空</button>
+                    </div>
+                </form>
+                <div class="panel" id="login-message">请先登录。</div>
+            </section>
+
+            <section class="card">
+                <h2>注册账号</h2>
+                <form id="register-form">
+                    <label>用户名
+                        <input
+                            id="register-username"
+                            autocomplete="username"
+                            placeholder="例如：zhangsan"
+                            minlength="3"
+                            maxlength="32"
+                            pattern="[a-zA-Z0-9_.-]+"
+                            title="用户名需 3-32 位，仅支持字母、数字、下划线（_）、短横线（-）和点号（.），不支持邮箱格式。"
+                        />
+                    </label>
+                    <div class="panel">用户名规则：3-32 位，仅支持字母、数字、下划线（_）、短横线（-）和点号（.），不支持邮箱格式。</div>
+                    <label>显示名称
+                        <input id="register-display-name" placeholder="例如：张三" />
+                    </label>
+                    <label>密码
+                        <input id="register-password" type="password" autocomplete="new-password" />
+                    </label>
+                    <label>确认密码
+                        <input id="register-confirm" type="password" autocomplete="new-password" />
+                    </label>
+                    <div class="row">
+                        <button id="register-button" class="neutral-button" type="submit">提交注册申请</button>
+                    </div>
+                </form>
+                <div class="panel" id="register-message">提交后状态为待审批，管理员通过后可登录。</div>
+            </section>
+        </section>
+    </main>
+
+    <script>
+        const initialStatus = {{ status_data | tojson }};
+    </script>
+    <script src="/static/auth.js"></script>
+</body>
+</html>

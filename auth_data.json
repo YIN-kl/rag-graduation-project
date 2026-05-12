@@ -1,51 +1,104 @@
 {
+  "schema_version": 2,
   "users": {
     "admin": {
-      "password": "admin123",
-      "name": "管理员"
+      "display_name": "管理员",
+      "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+      "status": "approved",
+      "roles": [
+        "admin"
+      ],
+      "created_at": "2026-05-11T05:24:22",
+      "reviewed_at": "2026-05-12T06:06:14",
+      "approved_at": "2026-05-12T06:06:14",
+      "approved_by": "admin",
+      "review_note": ""
     },
     "hr": {
-      "password": "hr123",
-      "name": "人力资源"
+      "display_name": "人力资源",
+      "password_hash": "070a3b5e8d4bd5c46acccb91c9c54614c0cd649e78c4c4719e3a64270bae5ddf",
+      "status": "approved",
+      "roles": [
+        "hr"
+      ],
+      "created_at": "2026-05-11T05:24:22",
+      "reviewed_at": "2026-05-12T06:06:10",
+      "approved_at": "2026-05-12T06:06:10",
+      "approved_by": "admin",
+      "review_note": ""
     },
     "employee": {
-      "password": "employee123",
-      "name": "普通员工"
+      "display_name": "普通员工",
+      "password_hash": "5b2f8e27e2e5b4081c03ce70b288c87bd1263140cbd1bd9ae078123509b7caff",
+      "status": "approved",
+      "roles": [
+        "employee"
+      ],
+      "created_at": "2026-05-11T05:24:22",
+      "reviewed_at": "2026-05-12T06:06:13",
+      "approved_at": "2026-05-12T06:06:13",
+      "approved_by": "admin",
+      "review_note": ""
+    },
+    "ywq": {
+      "display_name": "kl",
+      "password_hash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "status": "approved",
+      "roles": [
+        "admin"
+      ],
+      "created_at": "2026-05-12T06:21:13",
+      "reviewed_at": "2026-05-12T06:24:04",
+      "approved_at": "2026-05-12T06:24:04",
+      "approved_by": "admin",
+      "review_note": ""
+    },
+    "kl1": {
+      "display_name": "kl1",
+      "password_hash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "status": "approved",
+      "roles": [
+        "employee"
+      ],
+      "created_at": "2026-05-12T06:22:57",
+      "reviewed_at": "2026-05-12T06:24:11",
+      "approved_at": "2026-05-12T06:24:11",
+      "approved_by": "admin",
+      "review_note": ""
     }
   },
   "roles": {
-    "admin": "管理员",
-    "hr": "人力资源",
-    "employee": "普通员工"
+    "admin": {
+      "label": "管理员",
+      "permissions": [
+        "read_all",
+        "write_logs",
+        "read_employee",
+        "read_hr",
+        "manage_users"
+      ]
+    },
+    "hr": {
+      "label": "人力资源",
+      "permissions": [
+        "read_all",
+        "write_logs",
+        "read_employee",
+        "read_hr"
+      ]
+    },
+    "employee": {
+      "label": "普通员工",
+      "permissions": [
+        "read_employee"
+      ]
+    }
   },
   "permissions": {
     "read_all": "查看所有文档",
     "read_employee": "查看员工相关文档",
     "read_hr": "查看人力资源相关文档",
-    "write_logs": "查看和写入审计日志"
-  },
-  "role_permissions": {
-    "admin": [
-      "read_all",
-      "write_logs"
-    ],
-    "hr": [
-      "read_all",
-      "write_logs"
-    ],
-    "employee": [
-      "read_employee"
-    ]
-  },
-  "user_roles": {
-    "admin": [
-      "admin"
-    ],
-    "hr": [
-      "hr"
-    ],
-    "employee": [
-      "employee"
-    ]
+    "write_logs": "查看和写入审计日志",
+    "manage_users": "管理用户与权限"
   }
 }

@@ -43,6 +43,26 @@ def test_login_rejects_invalid_password():
     assert response.status_code == 401
 
 
+def test_register_rejects_too_short_username_with_clear_reason():
+    response = client.post(
+        "/register",
+        json={"username": "ab", "password": "abc123", "display_name": "测试用户"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "用户名至少 3 位"
+
+
+def test_register_rejects_email_as_username_with_clear_reason():
+    response = client.post(
+        "/register",
+        json={"username": "foo@example.com", "password": "abc123", "display_name": "测试用户"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "用户名不支持邮箱格式，请使用字母、数字或符号（._-）"
+
+
 def test_get_me_returns_profile_for_current_user():
     response = client.get("/me", headers=auth_headers("employee"))
 
